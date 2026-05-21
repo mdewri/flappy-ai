@@ -32,7 +32,7 @@ class Linear_QNet(nn.Module):
         file_name = os.path.join(model_folder_path, file_name)
         if os.path.exists(file_name):
             checkpoint = torch.load(file_name)
-            # Check if it's the new dictionary format or the old state_dict format
+            
             if 'state_dict' in checkpoint:
                 self.load_state_dict(checkpoint['state_dict'])
                 return checkpoint.get('n_games', 0), checkpoint.get('record', 0)
@@ -54,17 +54,17 @@ class QTrainer:
         next_state = torch.tensor(next_state, dtype=torch.float)
         action = torch.tensor(action, dtype=torch.long)
         reward = torch.tensor(reward, dtype=torch.float)
-        # (n, x)
+        
 
         if len(state.shape) == 1:
-            # (1, x)
+            
             state = torch.unsqueeze(state, 0)
             next_state = torch.unsqueeze(next_state, 0)
             action = torch.unsqueeze(action, 0)
             reward = torch.unsqueeze(reward, 0)
             done = (done, )
 
-        # 1: predicted Q values with current state
+        
         pred = self.model(state)
 
         target = pred.clone()
