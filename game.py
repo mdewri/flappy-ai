@@ -17,7 +17,7 @@ BLACK = (0, 0, 0)
 # Paths
 ASSET_DIR = os.path.join(os.path.dirname(__file__), 'assets')
 
-# Load and scale images (with error handling in case images don't load correctly)
+# Load and scale images 
 try:
     BIRD_IMG = pygame.image.load(os.path.join(ASSET_DIR, 'bird.png'))
     
@@ -30,13 +30,13 @@ try:
     BG_IMG = pygame.transform.scale(BG_IMG, (WIDTH, HEIGHT))
 except Exception as e:
     print(f"Error loading assets: {e}")
-    # Fallback to creating simple colored surfaces
+    
     BIRD_IMG = pygame.Surface((34, 24))
-    BIRD_IMG.fill((255, 255, 0)) # Yellow bird
+    BIRD_IMG.fill((255, 255, 0)) 
     PIPE_IMG = pygame.Surface((52, 320))
-    PIPE_IMG.fill((0, 255, 0)) # Green pipe
+    PIPE_IMG.fill((0, 255, 0)) 
     BG_IMG = pygame.Surface((WIDTH, HEIGHT))
-    BG_IMG.fill((135, 206, 235)) # Sky blue background
+    BG_IMG.fill((135, 206, 235)) 
 
 class FlappyGameAI:
     def __init__(self, w=WIDTH, h=HEIGHT, fps=FPS):
@@ -74,37 +74,35 @@ class FlappyGameAI:
     def play_step(self, action):
         self.frame_iteration += 1
         
-        # 1. collect user input (to quit game)
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 quit()
         
-        # 2. move
-        # action [0, 1] -> [Do nothing, Flap]
         if action[1] == 1:
-            self.bird_vel_y = -8 # flap
+            self.bird_vel_y = -8 
             
-        self.bird_vel_y += 0.5 # gravity
+        self.bird_vel_y += 0.5 
         if self.bird_vel_y > 10:
             self.bird_vel_y = 10
             
         self.bird_y += self.bird_vel_y
         self.bird_rect.y = int(self.bird_y)
         
-        # Move pipes
+        
         for pipe_pair in self.pipes:
             pipe_pair['top'].x += self.pipe_vel_x
             pipe_pair['bottom'].x += self.pipe_vel_x
             
-        # Add new pipes and remove old ones
+        
         if len(self.pipes) > 0 and self.pipes[-1]['top'].x < self.w - 200:
             self.add_pipe(self.w)
             
         if len(self.pipes) > 0 and self.pipes[0]['top'].right < 0:
             self.pipes.pop(0)
 
-        # 3. check if game over
+        
         reward = 0
         game_over = False
         if self.is_collision():
@@ -112,31 +110,31 @@ class FlappyGameAI:
             reward = -10
             return reward, game_over, self.score
             
-        # 4. update score and reward for passing pipes
+        
         for pipe_pair in self.pipes:
             if not pipe_pair['passed'] and pipe_pair['top'].right < self.bird_x:
                 self.score += 1
                 pipe_pair['passed'] = True
                 reward = 10
 
-        # Small positive reward for staying alive
+        
         if not game_over and reward == 0:
             reward = 0
 
-        # 5. update ui and clock
+        
         self.update_ui()
-        # You can set self.fps = 0 for no speed limit during training
+        
         if self.fps > 0:
             self.clock.tick(self.fps)
         
         return reward, game_over, self.score
         
     def is_collision(self):
-        # hit ground or roof
+        
         if self.bird_y > self.h - 24 or self.bird_y < 0:
             return True
             
-        # hit pipe
+       
         for pipe_pair in self.pipes:
             if self.bird_rect.colliderect(pipe_pair['top']) or self.bird_rect.colliderect(pipe_pair['bottom']):
                 return True
@@ -147,10 +145,10 @@ class FlappyGameAI:
         self.display.blit(BG_IMG, (0, 0))
         
         for pipe_pair in self.pipes:
-            # top pipe (flipped)
+            
             top_pipe_img = pygame.transform.flip(PIPE_IMG, False, True)
             self.display.blit(top_pipe_img, (pipe_pair['top'].x, pipe_pair['top'].y))
-            # bottom pipe
+            
             self.display.blit(PIPE_IMG, (pipe_pair['bottom'].x, pipe_pair['bottom'].y))
             
         self.display.blit(BIRD_IMG, (self.bird_rect.x, self.bird_rect.y))
