@@ -14,21 +14,17 @@ class Agent:
     def __init__(self):
         self.n_games = 0
         self.epsilon = 0 # randomness
-        self.gamma = 0.9 
-        self.memory = deque(maxlen=MAX_MEMORY) 
+        self.gamma = 0.9 # discount rate
+        self.memory = deque(maxlen=MAX_MEMORY) # popleft()
         self.model = Linear_QNet(4, 256, 2)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
 
     def get_state(self, game):
-        
-        pipe_ind = 0
-        if len(game.pipes) > 0:
-            
-            if game.bird_x > game.pipes[0]['top'].right:
-                if len(game.pipes) > 1:
-                    pipe_ind = 1
-
-        next_pipe = game.pipes[pipe_ind] if len(game.pipes) > 0 else None
+        # find the next pipe
+        next_pipe = None
+        if game.pipes:
+            pipe_ind = 1 if len(game.pipes) > 1 and game.bird_x > game.pipes[0]['top'].right else 0
+            next_pipe = game.pipes[pipe_ind]
         
         if next_pipe:
             dist_x = next_pipe['top'].x - game.bird_x
@@ -39,7 +35,7 @@ class Agent:
             top_y = 0
             bottom_y = game.h
 
-        
+        # Normalized RELATIVE state representation (much easier to learn)
         state = [
             dist_x / game.w,
             (game.bird_y - top_y) / game.h,
@@ -64,9 +60,10 @@ class Agent:
         self.trainer.train_step(state, action, reward, next_state, done)
 
     def get_action(self, state):
-        
+        # random moves: tradeoff exploration / exploitation
+        # Explore more early on, decay over 1000 games
         epsilon_prob = max(0.01, 0.5 - (self.n_games / 1000.0))
-        final_move = [0, 0] 
+        final_move = [0, 0] # [Do nothing, Flap]
         if random.random() < epsilon_prob:
             move = random.randint(0, 1)
             final_move[move] = 1
@@ -85,32 +82,33 @@ def train():
     record = 0
     agent = Agent()
     game = FlappyGameAI()
-    game.fps = 120 
+    game.fps = 120 # Speed up training visually
 
-
+    # Try to load existing model
     loaded_games, record = agent.model.load()
     if loaded_games > 0:
         agent.n_games = loaded_games
         print(f"Loaded existing model! Resuming from game {agent.n_games} with record {record}.")
 
     while True:
-       
+        # get old state
         state_old = agent.get_state(game)
 
-       
+        # get move
         final_move = agent.get_action(state_old)
 
-       
+        # perform move and get new state
         reward, done, score = game.play_step(final_move)
         state_new = agent.get_state(game)
 
+        # train short memory
         agent.train_short_memory(state_old, final_move, reward, state_new, done)
 
-        
+        # remember
         agent.remember(state_old, final_move, reward, state_new, done)
 
         if done:
-            
+            # train long memory, plot result
             game.reset()
             agent.n_games += 1
             agent.train_long_memory()
