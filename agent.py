@@ -35,7 +35,6 @@ class Agent:
             top_y = 0
             bottom_y = game.h
 
-        # Normalized RELATIVE state representation (much easier to learn)
         state = [
             dist_x / game.w,
             (game.bird_y - top_y) / game.h,
@@ -63,7 +62,7 @@ class Agent:
         # random moves: tradeoff exploration / exploitation
         # Explore more early on, decay over 1000 games
         epsilon_prob = max(0.01, 0.5 - (self.n_games / 1000.0))
-        final_move = [0, 0] # [Do nothing, Flap]
+        final_move = [0, 0] 
         if random.random() < epsilon_prob:
             move = random.randint(0, 1)
             final_move[move] = 1
@@ -82,9 +81,9 @@ def train():
     record = 0
     agent = Agent()
     game = FlappyGameAI()
-    game.fps = 120 # Speed up training visually
+    game.fps = 120 
 
-    # Try to load existing model
+
     loaded_games, record = agent.model.load()
     if loaded_games > 0:
         agent.n_games = loaded_games
@@ -108,7 +107,7 @@ def train():
         agent.remember(state_old, final_move, reward, state_new, done)
 
         if done:
-            # train long memory, plot result
+          
             game.reset()
             agent.n_games += 1
             agent.train_long_memory()
