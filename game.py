@@ -3,40 +3,53 @@ import random
 import os
 
 pygame.init()
-font = pygame.font.Font(pygame.font.get_default_font(), 25)
 
-# Game constants
 WIDTH = 400
 HEIGHT = 600
 FPS = 60
 
-# Colors
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
+YELLOW = (255, 255, 0)
+GREEN = (0, 255, 0)
+SKY_BLUE = (135, 206, 235)
 
-# Paths
+BIRD_WIDTH, BIRD_HEIGHT = 34, 24
+PIPE_WIDTH, PIPE_HEIGHT = 52, 320
+
+GRAVITY = 0.5
+FLAP_VELOCITY = 8
+MAX_VELOCITY = 10
+PIPE_VELOCITY = 4
+PIPE_GAP = 150
+
+COLLISION_PENALTY = -10
+PASS_REWARD = 10
+
+font = pygame.font.Font(pygame.font.get_default_font(), 25)
 ASSET_DIR = os.path.join(os.path.dirname(__file__), 'assets')
 
-# Load and scale images 
-try:
-    BIRD_IMG = pygame.image.load(os.path.join(ASSET_DIR, 'bird.png'))
-    
-    PIPE_IMG = pygame.image.load(os.path.join(ASSET_DIR, 'pipe.png'))
-    
-    BG_IMG = pygame.image.load(os.path.join(ASSET_DIR, 'bg.png'))
-    
-    BIRD_IMG = pygame.transform.scale(BIRD_IMG, (34, 24))
-    PIPE_IMG = pygame.transform.scale(PIPE_IMG, (52, 320))
-    BG_IMG = pygame.transform.scale(BG_IMG, (WIDTH, HEIGHT))
-except Exception as e:
-    print(f"Error loading assets: {e}")
-    
-    BIRD_IMG = pygame.Surface((34, 24))
-    BIRD_IMG.fill((255, 255, 0)) 
-    PIPE_IMG = pygame.Surface((52, 320))
-    PIPE_IMG.fill((0, 255, 0)) 
+def load_image(filename, size):
+    try:
+        img = pygame.image.load(os.path.join(ASSET_DIR, filename))
+        return pygame.transform.scale(img, size)
+    except Exception as e:
+        print(f"Error loading {filename}: {e}")
+        return None
+
+BIRD_IMG = load_image('bird.png', (BIRD_WIDTH, BIRD_HEIGHT))
+PIPE_IMG = load_image('pipe.png', (PIPE_WIDTH, PIPE_HEIGHT))
+BG_IMG = load_image('bg.png', (WIDTH, HEIGHT))
+
+if BIRD_IMG is None:
+    BIRD_IMG = pygame.Surface((BIRD_WIDTH, BIRD_HEIGHT))
+    BIRD_IMG.fill(YELLOW)
+if PIPE_IMG is None:
+    PIPE_IMG = pygame.Surface((PIPE_WIDTH, PIPE_HEIGHT))
+    PIPE_IMG.fill(GREEN)
+if BG_IMG is None:
     BG_IMG = pygame.Surface((WIDTH, HEIGHT))
-    BG_IMG.fill((135, 206, 235)) 
+    BG_IMG.fill(SKY_BLUE)
 
 class FlappyGameAI:
     def __init__(self, w=WIDTH, h=HEIGHT, fps=FPS):
@@ -49,31 +62,25 @@ class FlappyGameAI:
         self.reset()
         
     def reset(self):
-        # Bird state
         self.bird_x = int(self.w * 0.2)
         self.bird_y = int(self.h / 2)
         self.bird_vel_y = 0
-        self.bird_rect = pygame.Rect(self.bird_x, self.bird_y, 34, 24)
+        self.bird_rect = pygame.Rect(self.bird_x, self.bird_y, BIRD_WIDTH, BIRD_HEIGHT)
         
-        # Game state
         self.score = 0
         self.frame_iteration = 0
         
-        # Pipes
         self.pipes = []
-        self.pipe_vel_x = -4
-        self.pipe_gap = 150
         self.add_pipe(self.w + 100)
         
     def add_pipe(self, x):
         height = random.randint(100, 350)
-        top_pipe = pygame.Rect(x, height - 320, 52, 320)
-        bottom_pipe = pygame.Rect(x, height + self.pipe_gap, 52, 320)
+        top_pipe = pygame.Rect(x, height - PIPE_HEIGHT, PIPE_WIDTH, PIPE_HEIGHT)
+        bottom_pipe = pygame.Rect(x, height + PIPE_GAP, PIPE_WIDTH, PIPE_HEIGHT)
         self.pipes.append({'top': top_pipe, 'bottom': bottom_pipe, 'passed': False})
 
     def play_step(self, action):
         self.frame_iteration += 1
-        
         
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -81,60 +88,48 @@ class FlappyGameAI:
                 quit()
         
         if action[1] == 1:
-            self.bird_vel_y = -8 
+            self.bird_vel_y = -FLAP_VELOCITY
             
-        self.bird_vel_y += 0.5 
-        if self.bird_vel_y > 10:
-            self.bird_vel_y = 10
+        self.bird_vel_y += GRAVITY
+        if self.bird_vel_y > MAX_VELOCITY:
+            self.bird_vel_y = MAX_VELOCITY
             
         self.bird_y += self.bird_vel_y
         self.bird_rect.y = int(self.bird_y)
         
-        
         for pipe_pair in self.pipes:
-            pipe_pair['top'].x += self.pipe_vel_x
-            pipe_pair['bottom'].x += self.pipe_vel_x
+            pipe_pair['top'].x -= PIPE_VELOCITY
+            pipe_pair['bottom'].x -= PIPE_VELOCITY
             
-        
         if len(self.pipes) > 0 and self.pipes[-1]['top'].x < self.w - 200:
             self.add_pipe(self.w)
             
         if len(self.pipes) > 0 and self.pipes[0]['top'].right < 0:
             self.pipes.pop(0)
 
-        
         reward = 0
         game_over = False
         if self.is_collision():
             game_over = True
-            reward = -10
+            reward = COLLISION_PENALTY
             return reward, game_over, self.score
             
-        
         for pipe_pair in self.pipes:
             if not pipe_pair['passed'] and pipe_pair['top'].right < self.bird_x:
                 self.score += 1
                 pipe_pair['passed'] = True
-                reward = 10
+                reward = PASS_REWARD
 
-        
-        if not game_over and reward == 0:
-            reward = 0
-
-        
         self.update_ui()
-        
         if self.fps > 0:
             self.clock.tick(self.fps)
         
         return reward, game_over, self.score
         
     def is_collision(self):
-        
-        if self.bird_y > self.h - 24 or self.bird_y < 0:
+        if self.bird_y > self.h - BIRD_HEIGHT or self.bird_y < 0:
             return True
             
-       
         for pipe_pair in self.pipes:
             if self.bird_rect.colliderect(pipe_pair['top']) or self.bird_rect.colliderect(pipe_pair['bottom']):
                 return True
@@ -145,10 +140,8 @@ class FlappyGameAI:
         self.display.blit(BG_IMG, (0, 0))
         
         for pipe_pair in self.pipes:
-            
             top_pipe_img = pygame.transform.flip(PIPE_IMG, False, True)
             self.display.blit(top_pipe_img, (pipe_pair['top'].x, pipe_pair['top'].y))
-            
             self.display.blit(PIPE_IMG, (pipe_pair['bottom'].x, pipe_pair['bottom'].y))
             
         self.display.blit(BIRD_IMG, (self.bird_rect.x, self.bird_rect.y))
